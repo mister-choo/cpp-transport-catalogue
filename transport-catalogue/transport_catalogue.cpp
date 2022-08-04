@@ -9,22 +9,24 @@ Bus TransportCatalogue::ConstructBus(const std::string &name,
   for (const auto &stop : stops) {
     const auto index = name_to_stop_.at(stop);
     res.route.push_back(index);
-    res.stops.insert(index);
   }
 
   return res;
 }
-Bus_Index TransportCatalogue::Add(Bus &&bus) {
+
+BusIndex TransportCatalogue::AddBus(Bus &&bus) {
   auto &ref = busses_.emplace_back(std::move(bus));
   name_to_bus_[ref.name] = &ref;
 
-  for (const auto &stop : ref.stops) {
+  for (const auto &stop : ref.route) {
     stops_to_busses_[stop].insert(&ref);
+    busses_to_stops_[&ref].insert(stop);
   }
 
   return &ref;
 }
-Stop_Index TransportCatalogue::Add(Stop &&stop) {
+
+StopIndex TransportCatalogue::AddStop(Stop &&stop) {
   stops_.emplace_back(std::move(stop));
 
   const auto &new_el = stops_.back();
@@ -34,54 +36,61 @@ Stop_Index TransportCatalogue::Add(Stop &&stop) {
 
   return &stops_.back();
 }
-Stop_Ref TransportCatalogue::Search_Stops(const std::string &name) {
+
+StopRef TransportCatalogue::SearchStops(const std::string &name) const {
   return *name_to_stop_.at(name);
 }
-Bus_Ref TransportCatalogue::Search_Bus(const std::string &name) {
+
+BusRef TransportCatalogue::SearchBus(const std::string &name) const {
   return *name_to_bus_.at(name);
 }
 
-bool TransportCatalogue::Contains_Stop(const std::string &name) const {
-  return name_to_stop_.count(name);
+bool TransportCatalogue::ContainsStop(const std::string &name) const {
+  return name_to_stop_.count(name) != 0;
 }
 
-TransportCatalogue::Info TransportCatalogue::Bus_Info(const std::string &name) {
+TransportCatalogue::BusInfo
+TransportCatalogue::GetBusInfo(const std::string &name) const {
 
   if (not name_to_bus_.count(name)) {
-    return Info{name, 0, 0, 0, 0};
+    return {name, 0, 0, 0, 0};
   }
 
   double distance = 0.0;
-  double true_distance = 0.0;
-  const auto &bus = *name_to_bus_.at(name);
+  double real_distance = 0.0;
+
+  const auto index = name_to_bus_.at(name);
+  const auto &bus = *index;
+
   const auto &route = bus.route;
   auto route_size = route.size();
   for (size_t i = 0LU; i < route.size() - 1LU; ++i) {
     // std::cout << route[i]->coords.lat << route[i]->coords.lng;
 
     distance += ComputeDistance(route[i]->coords, route[i + 1]->coords);
-    true_distance += Get_Relation({route[i], route[i + 1]});
-    if (bus.type == DOUBLE)
-      true_distance += Get_Relation({route[i + 1], route[i]});
+    real_distance += GetDistance({route[i], route[i + 1]});
+    if (bus.type == FULL_PATH)
+      real_distance += GetDistance({route[i + 1], route[i]});
   }
 
-  if (bus.type == DOUBLE) {
+  if (bus.type == FULL_PATH) {
     distance *= 2.0;
     route_size *= 2;
     route_size -= 1;
   }
 
-  return Info{name, route_size, bus.stops.size(), true_distance,
-              true_distance / distance};
+  return {name, route_size, busses_to_stops_.at(index).size(), real_distance,
+          real_distance / distance};
 }
+
 std::string strip(std::string_view line) {
   const auto a = line.find_first_not_of(' '), b = line.find_last_not_of(' ');
 
   return std::string(line.substr(a, b - a + 1));
 }
 
-auto TransportCatalogue::Stop_Info(const std::string &name) const
-    -> std::set<std::string> {
+auto TransportCatalogue::GetStopInfo(const std::string &name) const
+    -> TransportCatalogue::StopInfo {
   if (not stops_to_busses_.count(name_to_stop_.at(name)))
     return {};
   std::set<std::string> res;
@@ -89,29 +98,30 @@ auto TransportCatalogue::Stop_Info(const std::string &name) const
   for (const auto &bus : stops_to_busses_.at(name_to_stop_.at(name))) {
     res.insert(bus->name);
   }
-  return res;
+  return {name, res};
 }
-double TransportCatalogue::Get_Relation(
-    const std::pair<Stop_Index, Stop_Index> &stops) {
+
+double TransportCatalogue::GetDistance(const Connection<StopIndex> &stops) const {
   if (relations_.count(stops))
     return relations_.at({stops});
   else
-    return relations_.at({stops.second, stops.first});
+    return relations_.at({stops.to, stops.from});
 }
-int TransportCatalogue::Get_Relation(
-    const std::pair<std::string, std::string> &stops) {
-  const auto &first = name_to_stop_.at(stops.first),
-             &second = name_to_stop_.at(stops.second);
+
+int TransportCatalogue::GetDistance(
+    const Connection<std::string> &stops) const {
+  const auto &first = name_to_stop_.at(stops.from),
+             &second = name_to_stop_.at(stops.to);
   if (relations_.count({first, second}))
     return relations_.at({first, second});
   else
     return relations_.at({second, first});
 }
 
-void TransportCatalogue::Add_Relation(
-    const std::pair<std::string, std::string> &stops, int amount) {
+void TransportCatalogue::SetDistance(const Connection<std::string> &stops,
+                                     int distance) {
 
-  const auto &first = name_to_stop_.at(stops.first),
-             &second = name_to_stop_.at(stops.second);
-  relations_[std::pair{first, second}] = amount;
+  const auto &from = name_to_stop_.at(stops.from),
+             &to = name_to_stop_.at(stops.to);
+  relations_[{from, to}] = distance;
 }

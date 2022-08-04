@@ -6,10 +6,10 @@
 #include <string>
 #include <vector>
 
-struct Temp_bus {
+struct TempBus {
   std::string name;
   Bus_Type type;
   std::vector<std::string> stops;
 };
 
-TransportCatalogue Read();
+TransportCatalogue Read(std::istream& in = std::cin);

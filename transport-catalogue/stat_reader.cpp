@@ -1,7 +1,7 @@
 #include "stat_reader.h"
 
 std::ostream &operator<<(std::ostream &out,
-                         const TransportCatalogue::Info info) {
+                         const TransportCatalogue::BusInfo &info) {
   out << "Bus " << info.name << ": ";
   if (info.stops_num == 0) {
     out << "not found" << std::endl;
@@ -13,40 +13,49 @@ std::ostream &operator<<(std::ostream &out,
   return out;
 }
 
-void Do(TransportCatalogue &C) {
+std::ostream &operator<<(std::ostream &out,
+                         const TransportCatalogue::StopInfo &info) {
 
+  if (info.buses.size()) {
+    out << "Stop " << info.name << ": buses ";
+    int flag = 0;
+
+    for (const auto &bus : info.buses) {
+      out << (flag++ ? " " : "") << bus;
+    }
+    out << std::endl;
+  } else {
+    out << "Stop " << info.name << ": no buses" << std::endl;
+  }
+  return out;
+}
+
+void Print(const TransportCatalogue::BusInfo &info) { std::cout << info; }
+
+void Print(const TransportCatalogue::StopInfo &info) { std::cout << info; }
+
+void Do(const TransportCatalogue &catalogue, std::istream &in,
+        std::ostream &out) {
   int n;
-  std::cin >> n;
+  in >> n;
   // std::cerr << "N:" << n << std::endl;
 
   while (n-- > 0) {
 
     std::string type;
-    std::cin >> type;
+    in >> type;
     if (type == "Bus") {
       std::string name;
-      std::getline(std::cin, name);
-      std::cout << C.Bus_Info(strip(name));
+      std::getline(in, name);
+      out << catalogue.GetBusInfo(strip(name));
     } else {
       std::string name;
-      std::getline(std::cin, name);
+      std::getline(in, name);
       name = strip(name);
-      if (not C.Contains_Stop(name)) {
-        std::cout << "Stop " << name << ": not found" << std::endl;
-      } else {
-        const auto busses = C.Stop_Info(strip(name));
-        if (busses.size()) {
-          std::cout << "Stop " << name << ": buses ";
-          int flag = 0;
-
-          for (const auto &bus : busses) {
-            std::cout << (flag++ ? " " : "") << bus;
-          }
-          std::cout << std::endl;
-        } else {
-          std::cout << "Stop " << name << ": no buses" << std::endl;
-        }
-      }
+      if (not catalogue.ContainsStop(name))
+        out << "Stop " << name << ": not found" << std::endl;
+      else
+        std::cout << catalogue.GetStopInfo(strip(name));
     }
   }
 }

@@ -8,19 +8,12 @@
 #include "stat_reader.h"
 #include "transport_catalogue.h"
 
-/*std::ostream &operator<<(std::ostream &out,
-                         const std::vector<std::string> vec) {
-  for (const auto &el : vec)
-    out << "[" << el << "] ";
-
-  return out;
-}*/
 
 int main() {
 
-  TransportCatalogue C = Read();
+  TransportCatalogue catalogue = Read();
 
-  Do(C);
+  Do(catalogue);
 
   return 0;
 }
